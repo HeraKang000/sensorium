@@ -13,6 +13,11 @@ CUSTOM_NODES="$COMFY_ROOT/custom_nodes"
 MODELS="$COMFY_ROOT/models"
 LOG="/workspace/provisioning.log"
 
+# ── HuggingFace: disable xet backend (avoids incomplete download failures)
+#    and point cache to a known location we clean up after
+export HF_HUB_DISABLE_XET=1
+export HF_HOME="/workspace/.hf_cache"
+
 exec > >(tee -a "$LOG") 2>&1
 echo ""
 echo "======================================================"
@@ -52,10 +57,10 @@ dl_hf() {
         return
     fi
     echo "  Downloading $(basename "$FILE") from $REPO ..."
-    python3 - <<PYEOF
+    python3 -c "
 from huggingface_hub import hf_hub_download
-hf_hub_download(repo_id="$REPO", filename="$FILE", local_dir="$DIR")
-PYEOF
+hf_hub_download(repo_id='$REPO', filename='$FILE', local_dir='$DIR')
+"
     green "$(basename "$FILE")"
 }
 
@@ -70,8 +75,6 @@ green "System packages ready"
 # ── 2. Python packages ────────────────────────────────────────
 echo ""
 echo "── 2. Python packages"
-export HF_HUB_ENABLE_HF_TRANSFER=1
-
 pip_quiet huggingface_hub hf_transfer
 pip_quiet decord opencv-python-headless "imageio[ffmpeg]"
 pip_quiet einops
@@ -106,11 +109,9 @@ mkdir -p \
 echo ""
 echo "── 4. Custom nodes"
 
-# Video I/O
 clone_or_update "ComfyUI-VideoHelperSuite" \
     "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite"
 
-# Utility nodes (used by several pipelines)
 clone_or_update "ComfyUI-KJNodes" \
     "https://github.com/kijai/ComfyUI-KJNodes"
 
@@ -118,7 +119,7 @@ clone_or_update "ComfyUI-KJNodes" \
 clone_or_update "comfyui_controlnet_aux" \
     "https://github.com/Fannovel16/comfyui_controlnet_aux"
 
-# SAM3 base nodes: LoadSAM3Model, SAM3Segmentation, SAM3MultipromptSegmentation
+# SAM3 base nodes: LoadSAM3Model, SAM3Segmentation
 clone_or_update "ComfyUI-SAM3" \
     "https://github.com/PozzettiAndrea/ComfyUI-SAM3"
 
@@ -126,7 +127,6 @@ clone_or_update "ComfyUI-SAM3" \
 clone_or_update "ComfyUI-AutoVideoMasking" \
     "https://github.com/ZeroSpaceStudios/ComfyUI-AutoVideoMasking"
 
-# Ensure AutoVideoMasking requirements are always current
 AVM_DIR="$CUSTOM_NODES/ComfyUI-AutoVideoMasking"
 if [ -f "$AVM_DIR/requirements.txt" ]; then
     echo "  Ensuring ComfyUI-AutoVideoMasking requirements..."
@@ -134,7 +134,6 @@ if [ -f "$AVM_DIR/requirements.txt" ]; then
     green "ComfyUI-AutoVideoMasking requirements OK"
 fi
 
-# ComfyUI Manager
 clone_or_update "ComfyUI-Manager" \
     "https://github.com/Comfy-Org/ComfyUI-Manager"
 
@@ -145,7 +144,7 @@ green "All custom nodes ready"
 echo ""
 echo "── 5. Models"
 
-echo "  [SAM3 checkpoint]"
+echo "  [SAM3 checkpoint — apozz/sam3-safetensors]"
 dl_hf "apozz/sam3-safetensors" \
     "sam3.safetensors" \
     "$MODELS/sam3"
@@ -154,22 +153,27 @@ echo "  [ONNX: YOLOv10m — for SAM3Grounding text-prompted detection]"
 dl_hf "onnx-community/yolov10m" \
     "onnx/model.onnx" \
     "$MODELS/detection"
-python3 - <<PYEOF
+python3 -c "
 import shutil, os
-src = "/workspace/ComfyUI/models/detection/onnx/model.onnx"
-dst = "/workspace/ComfyUI/models/detection/yolov10m.onnx"
+src = '/workspace/ComfyUI/models/detection/onnx/model.onnx'
+dst = '/workspace/ComfyUI/models/detection/yolov10m.onnx'
 if os.path.exists(src) and not os.path.exists(dst):
     shutil.move(src, dst)
-PYEOF
+"
 
-# Note: DepthAnything v2 weights are downloaded automatically by
-# comfyui_controlnet_aux on first use. No manual download needed.
+# DepthAnything v2 weights are auto-downloaded by comfyui_controlnet_aux on first use
 
 green "All models downloaded"
 
-# ── 6. Launch ComfyUI ────────────────────────────────────────
+# ── 6. Clean up HF cache ─────────────────────────────────────
 echo ""
-echo "── 6. Launching ComfyUI"
+echo "── 6. Cleaning HF cache"
+rm -rf "$HF_HOME"
+green "HF cache cleared"
+
+# ── 7. Launch ComfyUI ────────────────────────────────────────
+echo ""
+echo "── 7. Launching ComfyUI"
 pkill -f "python.*main.py" 2>/dev/null || true
 sleep 1
 
@@ -190,8 +194,8 @@ echo ""
 echo "  Pipeline: 360 video → Depth (DepthAnything v2) + Canny + Segmentation (SAM3)"
 echo ""
 echo "  Custom nodes:"
-echo "    comfyui_controlnet_aux  — DepthAnythingV2Preprocessor, CannyEdgePreprocessor"
-echo "    ComfyUI-SAM3            — LoadSAM3Model, SAM3Segmentation"
+echo "    comfyui_controlnet_aux   — DepthAnythingV2Preprocessor, CannyEdgePreprocessor"
+echo "    ComfyUI-SAM3             — LoadSAM3Model, SAM3Segmentation"
 echo "    ComfyUI-AutoVideoMasking — SAM3Grounding, SAM3VideoInitialize, SAM3VideoPropagate"
 echo "    ComfyUI-VideoHelperSuite — VHS_LoadVideo, VHS_VideoCombine"
 echo ""
