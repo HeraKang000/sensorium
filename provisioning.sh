@@ -146,8 +146,8 @@ echo ""
 echo "── 5. Models"
 
 echo "  [SAM3 checkpoint]"
-dl_hf "1038lab/sam3" \
-    "sam3.pt" \
+dl_hf "apozz/sam3-safetensors" \
+    "sam3.safetensors" \
     "$MODELS/sam3"
 
 echo "  [ONNX: YOLOv10m — for SAM3Grounding text-prompted detection]"
