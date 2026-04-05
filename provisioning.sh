@@ -140,10 +140,12 @@ clone_or_update "ComfyUI-Manager" \
 echo "security_level = weak" > "$CUSTOM_NODES/ComfyUI-Manager/config.ini"
 
 # Sensorium custom nodes — symlink from cloned repo into custom_nodes
-SENSORIUM_DIR="/workspace/sensorium"
+SENSORIUM_DIR="$HOME/sensorium"
 if [ -d "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" ]; then
     ln -sf "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" "$CUSTOM_NODES/sensorium_nodes"
     green "Sensorium nodes linked"
+else
+    red "Sensorium nodes not found at $SENSORIUM_DIR — skipping"
 fi
 
 green "All custom nodes ready"
