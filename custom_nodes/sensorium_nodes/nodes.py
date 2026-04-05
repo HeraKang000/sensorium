@@ -409,16 +409,106 @@ class SSSam3VideoOutput:
         return (all_masks, all_frames, all_vis)
 
 
+# ── Node 4: SensoriumMaskApply ────────────────────────────────────────────────
+
+class SensoriumMaskApply:
+    """
+    Apply a preprocessed image (depth, canny, etc.) only inside a mask region.
+
+    output = preprocessed * mask + background * (1 - mask)
+
+    background:
+      black    → masked area shows preprocessed, rest is black
+      original → masked area shows preprocessed, rest is original video frame
+      white    → masked area shows preprocessed, rest is white
+    """
+
+    CATEGORY = "Sensorium"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "preprocessed": ("IMAGE", {
+                    "tooltip": "Output of depth/canny/any preprocessor [F,H,W,C]"
+                }),
+                "mask": ("MASK", {
+                    "tooltip": "Mask from SAM3 [F,H,W] or [H,W]"
+                }),
+                "background": (["black", "original", "white"], {
+                    "default": "black",
+                    "tooltip": "What to show outside the mask"
+                }),
+            },
+            "optional": {
+                "original": ("IMAGE", {
+                    "tooltip": "Original video frames — required when background=original"
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "run"
+
+    def run(self, preprocessed, mask, background="black", original=None):
+        # preprocessed: [F, H, W, C] or [H, W, C]
+        # mask:         [F, H, W]   or [H, W]
+
+        pre = preprocessed.float()
+        msk = mask.float()
+
+        # Promote single-frame inputs to batch
+        if pre.dim() == 3:
+            pre = pre.unsqueeze(0)   # [1, H, W, C]
+        if msk.dim() == 2:
+            msk = msk.unsqueeze(0)   # [1, H, W]
+
+        F, H, W, C = pre.shape
+
+        # Broadcast mask to match frames
+        if msk.shape[0] == 1 and F > 1:
+            msk = msk.expand(F, H, W)
+        elif msk.shape[0] != F:
+            # Resize mask frame count to match (just repeat last frame)
+            msk = torch.cat([msk, msk[-1:].expand(F - msk.shape[0], H, W)], dim=0)
+
+        msk_4d = msk.unsqueeze(-1).expand(F, H, W, C)  # [F, H, W, C]
+
+        # Build background tensor
+        if background == "black":
+            bg = torch.zeros_like(pre)
+        elif background == "white":
+            bg = torch.ones_like(pre)
+        elif background == "original":
+            if original is None:
+                print("[SensoriumMaskApply] background=original but no original image connected — using black")
+                bg = torch.zeros_like(pre)
+            else:
+                bg = original.float()
+                if bg.dim() == 3:
+                    bg = bg.unsqueeze(0)
+                if bg.shape[0] == 1 and F > 1:
+                    bg = bg.expand(F, H, W, C)
+        else:
+            bg = torch.zeros_like(pre)
+
+        result = pre * msk_4d + bg * (1.0 - msk_4d)
+        return (result.clamp(0, 1),)
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 NODE_CLASS_MAPPINGS = {
     "SensoriumLayerInfo":   SensoriumLayerInfo,
     "SensoriumSelectLayer": SensoriumSelectLayer,
     "SSSam3VideoOutput":    SSSam3VideoOutput,
+    "SensoriumMaskApply":   SensoriumMaskApply,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SensoriumLayerInfo":   "Sensorium — Layer Info",
     "SensoriumSelectLayer": "Sensorium — Select Layer",
     "SSSam3VideoOutput":    "SS — SAM3 Video Output",
+    "SensoriumMaskApply":   "Sensorium — Mask Apply",
 }
