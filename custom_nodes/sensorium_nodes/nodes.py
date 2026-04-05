@@ -271,38 +271,37 @@ class SensoriumMaskViz:
                 frame_mask = masks[frame_idx]
                 if isinstance(frame_mask, np.ndarray):
                     frame_mask = torch.from_numpy(frame_mask)
-                if frame_mask.dim() == 4:
+                frame_mask = frame_mask.float()
+
+                # Normalize: squeeze batch dim, ensure [N, H, W] or [H, W]
+                while frame_mask.dim() > 3:
                     frame_mask = frame_mask.squeeze(0)
 
-                if frame_mask.dim() == 3 and frame_mask.shape[0] >= 1:
-                    num_objects = max(num_objects, frame_mask.shape[0])
+                # Promote [H, W] single mask to [1, H, W]
+                if frame_mask.dim() == 2:
+                    frame_mask = frame_mask.unsqueeze(0)
 
-                    if obj_id == -1:
-                        # All objects, each with its own color — NO legend
-                        for oid in range(frame_mask.shape[0]):
-                            om = frame_mask[oid].float()
-                            if om.max() > 1.0:
-                                om = om / 255.0
-                            color = torch.tensor(COLORS[oid % len(COLORS)])
-                            mask_rgb = om.unsqueeze(-1) * color.view(1, 1, 3)
-                            vis = vis * (1 - alpha * om.unsqueeze(-1)) + alpha * mask_rgb
-                            out_mask = torch.max(out_mask, om)
-                    else:
-                        # Single selected object
-                        oid = min(obj_id, frame_mask.shape[0] - 1)
-                        om = frame_mask[oid].float()
-                        if om.max() > 1.0:
-                            om = om / 255.0
+                # Normalize 0-255 → 0-1
+                if frame_mask.max() > 1.0:
+                    frame_mask = frame_mask / 255.0
+
+                num_objects = max(num_objects, frame_mask.shape[0])
+
+                if obj_id == -1:
+                    # All objects, each with its own color — NO legend
+                    for oid in range(frame_mask.shape[0]):
+                        om = frame_mask[oid]
                         color = torch.tensor(COLORS[oid % len(COLORS)])
                         mask_rgb = om.unsqueeze(-1) * color.view(1, 1, 3)
                         vis = vis * (1 - alpha * om.unsqueeze(-1)) + alpha * mask_rgb
-                        out_mask = om
-
-                        # Extract single obj mask for output
-                        if obj_id < frame_mask.shape[0]:
-                            out_mask = frame_mask[obj_id].float()
-                            if out_mask.max() > 1.0:
-                                out_mask = out_mask / 255.0
+                        out_mask = torch.max(out_mask, om)
+                else:
+                    oid = min(obj_id, frame_mask.shape[0] - 1)
+                    om = frame_mask[oid]
+                    color = torch.tensor(COLORS[oid % len(COLORS)])
+                    mask_rgb = om.unsqueeze(-1) * color.view(1, 1, 3)
+                    vis = vis * (1 - alpha * om.unsqueeze(-1)) + alpha * mask_rgb
+                    out_mask = om
 
             vis_frames.append(vis.clamp(0, 1))
             out_masks.append(out_mask)
