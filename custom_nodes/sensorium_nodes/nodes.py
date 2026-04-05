@@ -234,8 +234,17 @@ class SensoriumMaskViz:
         import os
         from PIL import Image as PILImage
 
-        h, w = video_state.height, video_state.width
-        num_frames = video_state.num_frames
+        # video_state may be a dataclass or a plain dict depending on which node produced it
+        if isinstance(video_state, dict):
+            h          = video_state["height"]
+            w          = video_state["width"]
+            num_frames = video_state["num_frames"]
+            temp_dir   = video_state["temp_dir"]
+        else:
+            h          = video_state.height
+            w          = video_state.width
+            num_frames = video_state.num_frames
+            temp_dir   = video_state.temp_dir
 
         if not masks:
             empty = torch.zeros(num_frames, h, w, 3)
@@ -248,7 +257,7 @@ class SensoriumMaskViz:
 
         for frame_idx in range(num_frames):
             # Load original frame
-            frame_path_jpg = os.path.join(video_state.temp_dir, f"{frame_idx:05d}.jpg")
+            frame_path_jpg = os.path.join(temp_dir, f"{frame_idx:05d}.jpg")
             if os.path.exists(frame_path_jpg):
                 img = PILImage.open(frame_path_jpg).convert("RGB")
                 img_np = np.array(img).astype(np.float32) / 255.0
