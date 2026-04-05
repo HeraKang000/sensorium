@@ -161,8 +161,6 @@ class SSSam3VideoOutput:
     show_legend = False → clean colored masks, no left-side legend
     """
 
-    _cache = {}
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -187,11 +185,6 @@ class SSSam3VideoOutput:
                 }),
             }
         }
-
-    @classmethod
-    def IS_CHANGED(cls, masks, video_state, scores=None, obj_id=-1, plot_all_masks=True, show_legend=False):
-        session_id = video_state.session_uuid if hasattr(video_state, 'session_uuid') else str(id(video_state))
-        return (id(masks), session_id, id(scores), obj_id, plot_all_masks, show_legend)
 
     RETURN_TYPES = ("MASK", "IMAGE", "IMAGE")
     RETURN_NAMES = ("masks", "frames", "visualization")
@@ -274,10 +267,6 @@ class SSSam3VideoOutput:
     def extract(self, masks, video_state, scores=None, obj_id=-1, plot_all_masks=True, show_legend=False):
         from PIL import Image as PILImage
 
-        cache_key = self.IS_CHANGED(masks, video_state, scores, obj_id, plot_all_masks, show_legend)
-        if cache_key in SSSam3VideoOutput._cache:
-            return SSSam3VideoOutput._cache[cache_key]
-
         # Resolve video_state (dataclass or dict)
         if isinstance(video_state, dict):
             h          = video_state["height"]
@@ -292,7 +281,14 @@ class SSSam3VideoOutput:
             temp_dir   = video_state.temp_dir
             session_id = video_state.session_uuid
 
+        print(f"[SSSam3VideoOutput] masks type={type(masks)}, len={len(masks) if masks else 0}")
+        if masks:
+            first_key = next(iter(masks))
+            first_val = masks[first_key]
+            print(f"[SSSam3VideoOutput] first frame_idx={first_key}, mask shape={first_val.shape if hasattr(first_val, 'shape') else type(first_val)}")
+
         if not masks:
+            print("[SSSam3VideoOutput] masks is empty — returning blank frames")
             empty = torch.zeros(num_frames, h, w)
             empty_img = torch.zeros(num_frames, h, w, 3)
             return (empty, empty_img, empty_img)
@@ -409,9 +405,8 @@ class SSSam3VideoOutput:
         all_frames = torch.from_numpy(frame_mmap)
         all_vis    = torch.from_numpy(vis_mmap)
 
-        result = (all_masks, all_frames, all_vis)
-        SSSam3VideoOutput._cache[cache_key] = result
-        return result
+        print(f"[SSSam3VideoOutput] done — num_objects={num_objects}, frames={num_frames}")
+        return (all_masks, all_frames, all_vis)
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
