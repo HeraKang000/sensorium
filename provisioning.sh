@@ -138,6 +138,14 @@ clone_or_update "ComfyUI-Manager" \
     "https://github.com/Comfy-Org/ComfyUI-Manager"
 
 echo "security_level = weak" > "$CUSTOM_NODES/ComfyUI-Manager/config.ini"
+
+# Sensorium custom nodes — symlink from cloned repo into custom_nodes
+SENSORIUM_DIR="/workspace/sensorium"
+if [ -d "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" ]; then
+    ln -sf "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" "$CUSTOM_NODES/sensorium_nodes"
+    green "Sensorium nodes linked"
+fi
+
 green "All custom nodes ready"
 
 # ── 5. Models ────────────────────────────────────────────────
