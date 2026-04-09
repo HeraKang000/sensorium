@@ -139,13 +139,25 @@ clone_or_update "ComfyUI-Manager" \
 
 echo "security_level = weak" > "$CUSTOM_NODES/ComfyUI-Manager/config.ini"
 
-# Sensorium custom nodes — symlink from cloned repo into custom_nodes
+# Sensorium custom nodes — clone/update repo, then symlink into custom_nodes
+SENSORIUM_REPO="https://github.com/HeraKang000/sensorium.git"
 SENSORIUM_DIR="$HOME/sensorium"
-if [ -d "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" ]; then
-    ln -sf "$SENSORIUM_DIR/custom_nodes/sensorium_nodes" "$CUSTOM_NODES/sensorium_nodes"
-    green "Sensorium nodes linked"
+
+if [ ! -d "$SENSORIUM_DIR/.git" ]; then
+    echo "  Cloning Hera sensorium repo..."
+    git clone --depth 1 "$SENSORIUM_REPO" "$SENSORIUM_DIR"
+    green "sensorium repo cloned"
 else
-    red "Sensorium nodes not found at $SENSORIUM_DIR — skipping"
+    yellow "sensorium repo exists — pulling"
+    git -C "$SENSORIUM_DIR" pull --ff-only 2>/dev/null || true
+fi
+
+HERA_NODES="$SENSORIUM_DIR/ComfyUI/custom_nodes/Hera-sensorium"
+if [ -d "$HERA_NODES" ]; then
+    ln -sf "$HERA_NODES" "$CUSTOM_NODES/Hera-sensorium"
+    green "Hera-sensorium nodes linked"
+else
+    red "Hera-sensorium not found in repo — skipping"
 fi
 
 green "All custom nodes ready"
@@ -204,8 +216,9 @@ echo ""
 echo "  Pipeline: 360 video → Depth (DepthAnything v2) + Canny + Segmentation (SAM3)"
 echo ""
 echo "  Custom nodes:"
-echo "    comfyui_controlnet_aux   — DepthAnythingV2Preprocessor, CannyEdgePreprocessor"
+echo "    comfyui_controlnet_aux   — DepthAnythingV2Preprocessor, CannyEdgePreprocessor, OpenPose"
 echo "    ComfyUI-SAM3             — LoadSAM3Model, SAM3Segmentation"
 echo "    ComfyUI-AutoVideoMasking — SAM3Grounding, SAM3VideoInitialize, SAM3VideoPropagate"
 echo "    ComfyUI-VideoHelperSuite — VHS_LoadVideo, VHS_VideoCombine"
+echo "    Hera-sensorium           — Lift3D (Pose + Depth → Unity)"
 echo ""
