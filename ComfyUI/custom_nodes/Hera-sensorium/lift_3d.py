@@ -142,14 +142,22 @@ class Lift3DNode:
         # ── lift each person ──────────────────────────────────────────
         people_out = []
 
-        # pose_keypoints may be a list or a single dict depending on the
-        # upstream node. Normalise to a list-of-people list.
+        # comfyui_controlnet_aux OpenPose outputs a LIST OF FRAME DICTS:
+        #   [ {"people": [...], "canvas_width": W, "canvas_height": H}, ... ]
+        # One dict per video frame. We pick the frame matching frame_index.
+        # Normalise whatever arrives into a flat list-of-people.
         if isinstance(pose_keypoints, dict):
-            # Some nodes wrap as {"people": [...]}
+            # Single frame dict: {"people": [...]}
             raw_people = pose_keypoints.get("people", [])
         elif isinstance(pose_keypoints, list):
-            # Could be [[kp…], [kp…]] or [{"pose_keypoints_2d": [...]}]
-            raw_people = pose_keypoints
+            first = pose_keypoints[0] if pose_keypoints else None
+            if isinstance(first, dict) and "people" in first:
+                # List of frame dicts — pick the right frame
+                idx = min(frame_index, len(pose_keypoints) - 1)
+                raw_people = pose_keypoints[idx].get("people", [])
+            else:
+                # Already a flat list of people / keypoint arrays
+                raw_people = pose_keypoints
         else:
             raw_people = []
 
