@@ -24,7 +24,10 @@ namespace Sensorium.Lift3D
 
         // ── Unity lifecycle ───────────────────────────────────────────────────
 
-        void Start() => LoadFile(jsonFilePath);
+        void Start()
+        {
+            LoadFile(jsonFilePath);
+        }
 
         // ── public API ────────────────────────────────────────────────────────
 

@@ -45,11 +45,17 @@ namespace Sensorium.Lift3D
         {
             _jointMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             _boneMat  = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+
+            // Register before Loader.Start() fires so we don't miss the event
+            if (loader != null)
+                loader.onFrameLoaded.AddListener(Visualize);
         }
 
         void Start()
         {
-            if (loader == null) return;
+            if (loader == null) { Debug.LogError("[Lift3DVisualizer] Loader is not assigned!"); return; }
+
+            // If loader already has frames (e.g. loaded in Awake), start playback now
             if (loader.Frames.Count > 0 && autoPlay)
                 StartPlayback();
         }
