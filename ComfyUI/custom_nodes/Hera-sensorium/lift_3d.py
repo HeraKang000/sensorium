@@ -107,8 +107,9 @@ class Lift3DNode:
                 "confidence_threshold": (
                     "FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}
                 ),
-                "output_path":    ("STRING", {"default": "lift3d_output.json"}),
+                "output_path":    ("STRING", {"default": "lift3d_output.jsonl"}),
                 "frame_index":    ("INT",    {"default": 0,    "min": 0,   "max": 999999}),
+                "append_mode":    ("BOOLEAN", {"default": True}),
             }
         }
 
@@ -123,6 +124,7 @@ class Lift3DNode:
         confidence_threshold: float,
         output_path: str,
         frame_index: int,
+        append_mode: bool = True,
     ):
         W, H = image_width, image_height
 
@@ -220,8 +222,14 @@ class Lift3DNode:
             out_dir = os.path.dirname(output_path)
             if out_dir:
                 os.makedirs(out_dir, exist_ok=True)
-            with open(output_path, "w", encoding="utf-8") as fh:
-                fh.write(json_str)
+            if append_mode:
+                # One compact JSON line per frame (NDJSON)
+                line = json.dumps(result, separators=(",", ":")) + "\n"
+                with open(output_path, "a", encoding="utf-8") as fh:
+                    fh.write(line)
+            else:
+                with open(output_path, "w", encoding="utf-8") as fh:
+                    fh.write(json_str)
 
         # ── convert preview to ComfyUI IMAGE tensor (B,H,W,3) ────────
         preview_clipped = np.clip(preview, 0.0, 1.0).astype(np.float32)
