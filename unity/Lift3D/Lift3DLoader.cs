@@ -51,6 +51,7 @@ namespace Sensorium.Lift3D
                 string json = File.ReadAllText(path);
                 var frame = JsonConvert.DeserializeObject<Lift3DFrame>(json);
                 CurrentFrame = frame;
+                Debug.Log($"[Lift3DLoader] Loaded frame {frame?.frame}, {frame?.people?.Count ?? 0} people.");
                 onFrameLoaded?.Invoke(frame);
             }
             catch (System.Exception e)

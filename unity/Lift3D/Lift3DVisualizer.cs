@@ -20,9 +20,11 @@ namespace Sensorium.Lift3D
         public Lift3DLoader loader;
 
         [Header("Visuals")]
-        public float jointRadius   = 0.02f;
-        public float boneWidth     = 0.008f;
-        public float depthScale    = 2f;     // multiply all z values
+        public float jointRadius   = 0.5f;
+        public float boneWidth     = 0.2f;
+        // depthScale: lift values are tiny (fx=image_width, depth 0-1).
+        // 100 maps a 2048-wide frame to ~±50 units laterally — adjust to taste.
+        public float depthScale    = 100f;
         public Color jointColor    = new Color(0.2f, 1f, 0.4f);
         public Color boneColor     = new Color(1f, 1f, 1f, 0.7f);
         public Color lowConfColor  = new Color(1f, 0.3f, 0.3f, 0.5f);
@@ -65,7 +67,13 @@ namespace Sensorium.Lift3D
         {
             ClearAll();
 
-            if (frame?.people == null) return;
+            if (frame?.people == null)
+            {
+                Debug.LogWarning("[Lift3DVisualizer] Frame is null or has no people array.");
+                return;
+            }
+
+            Debug.Log($"[Lift3DVisualizer] Frame {frame.frame}: {frame.people.Count} people detected.");
 
             foreach (var person in frame.people)
                 SpawnPerson(person);
@@ -78,6 +86,7 @@ namespace Sensorium.Lift3D
             if (person.keypoints_3d == null) return;
 
             var kpPositions = new Dictionary<string, Vector3>();
+            int validCount = 0;
 
             // ── joints ────────────────────────────────────────────────────────
             foreach (var (name, kp) in person.keypoints_3d)
@@ -85,6 +94,7 @@ namespace Sensorium.Lift3D
                 if (!kp.IsValid || kp.confidence < confidenceCutoff) continue;
 
                 Vector3 pos = kp.ToVector3() * depthScale;
+                validCount++;
                 kpPositions[name] = pos;
 
                 var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -101,6 +111,8 @@ namespace Sensorium.Lift3D
 
                 _jointObjects.Add(go);
             }
+
+            Debug.Log($"[Lift3DVisualizer] Person {person.person_id}: {validCount} valid joints spawned.");
 
             // ── bones ─────────────────────────────────────────────────────────
             foreach (var (a, b) in SkeletonDef.Bones)
